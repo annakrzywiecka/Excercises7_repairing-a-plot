@@ -1,0 +1,112 @@
+---
+title: "Rapairing a bad plot"
+author: "Anna Krzywiecka"
+format: html
+editor: visual
+---
+
+```{r message=FALSE, warning=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyr")
+library("dplyr")
+library("ggplot2")
+
+```
+
+## Aim
+
+My aim is to repair this plot:
+
+![badplot](images/plot_to_be_repaired.png){fig-align="center"}
+
+## Code
+
+At first I load the csv file that I created myself. I assumed that the sum of numbers (not the percentage value) in each group of voters equals the (100% - percentage_value). Then I used proportion to count a number of votes in each category. Afterwards I created a data frame out of the csv data.
+
+```{r message=FALSE, warning=FALSE}
+Table_votes_wide<-readr::read_csv("votes")
+
+Table_votes_wide[1,2] <- round((Table_votes_wide[2,3]+Table_votes_wide[2,4]+Table_votes_wide[2,5])/0.71)
+Table_votes_wide[1,3] <-round((Table_votes_wide[2,3]+Table_votes_wide[2,4]+Table_votes_wide[2,5])/0.36)
+Table_votes_wide[1,4] <- round((Table_votes_wide[2,3]+Table_votes_wide[2,4]+Table_votes_wide[2,5])/0.96)
+Table_votes_wide[1,5] <- round((Table_votes_wide[2,3]+Table_votes_wide[2,4]+Table_votes_wide[2,5])/0.84)
+Table_votes_wide <- data.frame(Table_votes_wide)
+
+Table_votes_wide
+```
+
+Then I wanted to create a v of a longer format so I used the `pivot_longer(data=Table_votes_wide)`.Next step was to make a column out of the headings of rows. Their values are now in a column 'number' and their names are in a column 'Voters_Group' and this column is redundant (which is a normal thing for a longer data format).
+
+```{r}
+Table_votes_long<-pivot_longer(data=Table_votes_wide, 
+                             cols=colnames(Table_votes_wide)[-1],
+                             values_to = "number",
+                             names_to = "Voters_Group")
+Table_votes_long
+```
+
+Subsequently I counted the percentages and put them into a new column. I also wanted to change the name of one of the Voters_Group categories. I needed it to be have spaces for the plotting to look good for the reader.
+
+```{r}
+Table_votes_long <- Table_votes_long %>%
+  group_by(Voters_Group) %>%
+  mutate(sumnum = sum(number)) %>%
+  mutate(percentage = round(number/sumnum,2)*100)
+  
+Table_votes_long <- Table_votes_long %>%
+  mutate(Voters_Group = ifelse(Voters_Group == 'Allregisteredvoters', 'All registered voters', Voters_Group))
+  
+Table_votes_long
+```
+
+And finally I create a plot.
+
+-   It has Voters_Group on the x axis and percentages of the votes on the y axis. I fill them by the voters choice.
+
+-   It is a bar plot which doesn't show counts of the data in column percentage. It shows simply the percentages thanks to `stat = "identity"`.
+
+-   I added labels for each bar to have an exact value written. I used the `geom_text(aes(label = percentage)`. And I chose labels position by trying out different values of `width`, `hjust` and `vjust` and this code is my consensus.
+
+-   I added the title and other needed labels, e.g. names of axes.
+
+-   I also chose a color palette which was magma for discrete values.
+
+-   I chose the minimal theme.
+
+-   Then I flipped the whole plot because I wanted it to resemble the plot I want to repair. And I had to choose the order of the labels in the legend and the bars on x axis.
+
+-   This led to a problem that the legend was going the other way round than the bars displayed so I also had to reverse the order of list in the legend. And I had to choose the order of the bars on x axis.
+
+-   Finally I needed to lengthen the y axis to let all the values be visible.
+
+```{r}
+
+my_repaired_plot <-ggplot(data = Table_votes_long, aes(x = factor(Voters_Group, levels = c("Independents", "Democrats", "Republicans", "All registered voters")), y = percentage, fill = factor(VoteCategory, ,levels = c("Strongly disapprove", "Somewhat disapprove", "Somewhat approve", "Strongly approve")))) +
+  geom_bar(stat = "identity", position = "dodge", color = 'grey') +
+  
+  geom_text(aes(label = percentage), position = position_dodge(width = 1), hjust = -0.5) +
+  labs(title = "Strength of Trump Approval/Disapproval by Party", 
+       x = "Voters Group", 
+       y = "Percent of the Votes in each party",
+       fill = "Vote Options") +  
+  
+  theme_minimal() +
+  coord_flip() +
+  guides(fill = guide_legend(reverse = FALSE))+
+  scale_fill_viridis_d(option = "magma", breaks = c("Strongly approve", "Somewhat approve", "Somewhat disapprove", "Strongly disapprove")) +
+  ylim(0, 90)
+my_repaired_plot
+```
+
+Here I am saving my plot to an image.
+
+```{r}
+
+ggsave("images/my_repaired_plot.png", my_repaired_plot, width = 6, height = 4, scale = 1, bg = 'white')
+
+```
+
+## Outcome
+
+This is the plot I created: ![goodplot](images/my_repaired_plot.png)
